@@ -66,3 +66,17 @@ export async function savePreferenceVector(userId: number, embedding: number[]) 
   });
   return res.json();
 }
+
+
+export async function chatWithStylist(
+  message: string,
+  history: { role: string; content: string }[] = [],
+  userId?: number
+) {
+  const res = await fetch(`${BASE}/chat/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history, user_id: userId }),
+  });
+  return res.json();
+}

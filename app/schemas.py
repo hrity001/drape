@@ -101,3 +101,15 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
     user_id: int
     has_completed_quiz: bool
+class ChatMessage(BaseModel):
+    role: str          # "user" or "assistant"
+    content: str
+
+class ChatRequest(BaseModel):
+    message: str
+    history: Optional[List[ChatMessage]] = []   # previous turns
+    user_id: Optional[int] = None               # for personalization (optional)
+
+class ChatResponse(BaseModel):
+    reply: str
+    brands: Optional[List[SearchResult]] = []   # brands referenced in the reply

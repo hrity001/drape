@@ -12,3 +12,4 @@ requests
 httpx
 passlib[bcrypt]
 python-jose[cryptography]
+
