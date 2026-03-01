@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+sqlalchemy
+asyncpg
+pgvector
+pydantic
+alembic
+python-dotenv
+openai
+googlesearch-python
+requests
+httpx
+passlib[bcrypt]
+python-jose[cryptography]
