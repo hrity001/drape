@@ -14,6 +14,11 @@ export async function getBrands() {
   return res.json();
 }
 
+export async function getSimilarBrands(brandId: number, limit = 5) {
+  const res = await fetch(`${BASE}/brands/${brandId}/similar?limit=${limit}`);
+  return res.json();
+}
+
 export async function submitFeedback(user_id: number, brand_id: number, liked: boolean) {
   const res = await fetch(`${BASE}/users/feedback`, {
     method: "POST",

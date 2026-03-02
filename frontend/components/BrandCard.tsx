@@ -1,3 +1,7 @@
+"use client";
+import { useState } from "react";
+import { getSimilarBrands } from "@/lib/api";
+
 type Brand = {
   id: number; name: string; website?: string;
   instagram_handle?: string; country?: string;
@@ -10,6 +14,25 @@ export default function BrandCard({ brand, onLike, onDislike }: {
   onLike?: () => void;
   onDislike?: () => void;
 }) {
+  const [showSimilar, setShowSimilar] = useState(false);
+  const [similar, setSimilar] = useState<Brand[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const toggleSimilar = async () => {
+    if (!showSimilar && similar.length === 0) {
+      setLoading(true);
+      try {
+        const data = await getSimilarBrands(brand.id);
+        setSimilar(data);
+      } catch (error) {
+        console.error("Failed to load similar brands:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    setShowSimilar(!showSimilar);
+  };
+
   return (
     <div className="rounded-2xl border p-4 shadow-sm bg-white space-y-2">
       <div className="flex justify-between items-start">
@@ -18,18 +41,68 @@ export default function BrandCard({ brand, onLike, onDislike }: {
           <span className="text-xs bg-gray-100 px-2 py-1 rounded-full">{brand.price_range}</span>
         )}
       </div>
+      
       {brand.description && <p className="text-sm text-gray-600">{brand.description}</p>}
+      
       <div className="flex flex-wrap gap-1">
         {brand.tags?.map(t => (
           <span key={t} className="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">{t}</span>
         ))}
       </div>
+      
       <div className="flex gap-3 text-sm">
         {brand.website && <a href={brand.website} target="_blank" className="text-blue-500 underline">Website</a>}
         {brand.instagram_handle && (
           <a href={`https://instagram.com/${brand.instagram_handle}`} target="_blank" className="text-pink-500 underline">Instagram</a>
         )}
       </div>
+
+      {/* Similar Brands Toggle Button */}
+      <button
+        onClick={toggleSimilar}
+        className="text-xs text-gray-600 hover:text-pink-600 transition-colors flex items-center gap-1"
+      >
+        <span>✨</span>
+        {loading ? "Loading..." : showSimilar ? "Hide similar brands" : "Show similar brands"}
+      </button>
+
+      {/* Similar Brands List */}
+      {showSimilar && similar.length > 0 && (
+        <div className="mt-3 pl-4 border-l-2 border-pink-200 space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase">You might also like</p>
+          {similar.map((s) => (
+            <div key={s.id} className="text-sm space-y-1">
+              <div className="flex justify-between items-start">
+                <span className="font-medium text-gray-900">{s.name}</span>
+                {s.price_range && (
+                  <span className="text-xs text-gray-500">{s.price_range}</span>
+                )}
+              </div>
+              {s.description && (
+                <p className="text-xs text-gray-600 line-clamp-2">{s.description}</p>
+              )}
+              <div className="flex gap-2 text-xs">
+                {s.website && (
+                  <a href={s.website} target="_blank" className="text-blue-500 hover:underline">
+                    Website
+                  </a>
+                )}
+                {s.instagram_handle && (
+                  <a 
+                    href={`https://instagram.com/${s.instagram_handle}`} 
+                    target="_blank" 
+                    className="text-pink-500 hover:underline"
+                  >
+                    Instagram
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Like/Dislike Buttons */}
       {(onLike || onDislike) && (
         <div className="flex gap-3 pt-2">
           <button onClick={onDislike} className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600">👎 Pass</button>

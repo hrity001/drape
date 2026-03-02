@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas import BrandCreate, BrandOut, EmbeddingUpdate
 from app import crud
+from app.schemas import SearchResult 
 
 router = APIRouter(prefix="/brands", tags=["Brands"])
 
@@ -20,6 +21,13 @@ async def get_brand(brand_id: int, db: AsyncSession = Depends(get_db)):
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
     return brand
+
+#getting similar brands routes
+@router.get("/{brand_id}/similar", response_model=list[SearchResult])
+async def get_similar_brands(brand_id: int, limit: int = 5, db: AsyncSession = Depends(get_db)):
+    """Get brands with similar style/aesthetic to this brand."""
+    return await crud.get_similar_brands(db, brand_id, limit)
+
 
 @router.patch("/{brand_id}/embedding", response_model=BrandOut)
 async def update_embedding(brand_id: int, body: EmbeddingUpdate, db: AsyncSession = Depends(get_db)):
