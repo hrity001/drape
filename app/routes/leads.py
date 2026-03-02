@@ -21,4 +21,4 @@ async def promote_lead(lead_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Lead not found")
     return brand
 
-# Made with Bob
+
