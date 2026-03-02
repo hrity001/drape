@@ -168,6 +168,35 @@ async def semantic_search_brands(
     result = await db.execute(sql, params)
     return [dict(row) for row in result.mappings().all()]
 
+
+async def get_similar_brands(
+    db: AsyncSession,
+    brand_id: int,
+    limit: int = 5,
+):
+    """Find brands with similar embeddings to the given brand."""
+    # First get the target brand's embedding
+    brand = await get_brand(db, brand_id)
+    if not brand or brand.embedding is None:
+        return []
+    
+    # Format vector as pgvector literal
+    vec_literal = "[" + ",".join(str(x) for x in brand.embedding) + "]"
+    
+    sql = text(f"""
+        SELECT id, name, website, instagram_handle, country, category,
+               price_range, tags, description,
+               (embedding <=> '{vec_literal}'::vector) AS score
+        FROM brands
+        WHERE id != :brand_id AND embedding IS NOT NULL
+        ORDER BY embedding <=> '{vec_literal}'::vector
+        LIMIT :limit
+    """)
+    
+    result = await db.execute(sql, {"brand_id": brand_id, "limit": limit})
+    return [dict(row) for row in result.mappings().all()]
+
+
 async def get_user_by_email(db: AsyncSession, email: str):
     result = await db.execute(select(User).where(User.email == email))
     return result.scalar_one_or_none()
