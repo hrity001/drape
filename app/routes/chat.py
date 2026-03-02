@@ -12,14 +12,23 @@ EMBED_MODEL = "nomic-embed-text"
 CHAT_MODEL  = "llama3.2"
 
 
+
 async def embed(text: str) -> list[float]:
     """Embed the user's message using nomic-embed-text."""
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(
-            f"{OLLAMA_URL}/api/embeddings",
-            json={"model": EMBED_MODEL, "prompt": text},
-        )
-        return r.json()["embedding"]
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"{OLLAMA_URL}/api/embeddings",
+                json={"model": EMBED_MODEL, "prompt": text},
+            )
+            r.raise_for_status()
+            return r.json()["embedding"]
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=503, detail="Embedding service timed out. Try again shortly.")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Embedding service is unavailable. Is Ollama running?")
+    except (KeyError, ValueError) as e:
+        raise HTTPException(status_code=503, detail=f"Unexpected response from embedding service: {e}")
 
 
 async def call_llm(system: str, history: list, user_message: str) -> str:
@@ -29,12 +38,20 @@ async def call_llm(system: str, history: list, user_message: str) -> str:
         messages.append({"role": turn.role, "content": turn.content})
     messages.append({"role": "user", "content": user_message})
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(
-            f"{OLLAMA_URL}/api/chat",
-            json={"model": CHAT_MODEL, "messages": messages, "stream": False},
-        )
-        return r.json()["message"]["content"]
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                f"{OLLAMA_URL}/api/chat",
+                json={"model": CHAT_MODEL, "messages": messages, "stream": False},
+            )
+            r.raise_for_status()
+            return r.json()["message"]["content"]
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=503, detail="AI stylist timed out. Ollama may be loading the model.")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="AI stylist is unavailable. Is Ollama running?")
+    except (KeyError, ValueError) as e:
+        raise HTTPException(status_code=503, detail=f"Unexpected response from LLM: {e}")
 
 
 def build_system_prompt(brands: list[dict]) -> str:
