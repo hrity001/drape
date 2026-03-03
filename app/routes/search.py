@@ -38,12 +38,14 @@ async def search_brands(body: SearchQuery, db: AsyncSession = Depends(get_db)):
     price_range = body.price_range or filters.get("price_range")
     category    = body.category    or filters.get("category")
 
-    query_vector = get_query_embedding(body.query)  # raises 503 if Ollama is down
+    query_vector = get_query_embedding(body.query)
 
-    results = await crud.semantic_search_brands(
-        db, query_vector, country, price_range, category, body.limit
+    # Use hybrid search
+    results = await crud.hybrid_search_brands(
+        db, body.query, query_vector, country, price_range, category, body.limit
     )
     return results
+
 
 
 class EmbedRequest(BaseModel):
