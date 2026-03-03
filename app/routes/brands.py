@@ -5,7 +5,8 @@ from typing import List
 
 from app.database import get_db
 from app.models import Brand
-from app.schemas import BrandOut, BrandCreate
+from app.schemas import BrandOut, BrandCreate, SearchResult
+from app import crud
 
 router = APIRouter(prefix="/brands", tags=["brands"])
 
@@ -19,6 +20,19 @@ async def get_brands(
     """Get all brands"""
     result = await db.execute(
         select(Brand).offset(skip).limit(limit)
+    )
+    brands = result.scalars().all()
+    return brands
+
+
+@router.get("/featured/", response_model=List[BrandOut])
+async def get_featured_brands(
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get featured brands"""
+    result = await db.execute(
+        select(Brand).where(Brand.is_featured == True).limit(limit)
     )
     brands = result.scalars().all()
     return brands
@@ -38,6 +52,24 @@ async def get_brand(brand_id: int, db: AsyncSession = Depends(get_db)):
     return brand
 
 
+@router.get("/{brand_id}/similar", response_model=List[SearchResult])
+async def get_similar_brands_route(
+    brand_id: int,
+    limit: int = 5,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get brands similar to the specified brand based on embeddings"""
+    similar = await crud.get_similar_brands(db, brand_id, limit)
+    
+    if not similar:
+        raise HTTPException(
+            status_code=404, 
+            detail="Brand not found or has no embedding"
+        )
+    
+    return similar
+
+
 @router.post("/", response_model=BrandOut)
 async def create_brand(
     brand: BrandCreate,
@@ -49,16 +81,3 @@ async def create_brand(
     await db.commit()
     await db.refresh(db_brand)
     return db_brand
-
-
-@router.get("/featured/", response_model=List[BrandOut])
-async def get_featured_brands(
-    limit: int = 10,
-    db: AsyncSession = Depends(get_db)
-):
-    """Get featured brands"""
-    result = await db.execute(
-        select(Brand).where(Brand.is_featured == True).limit(limit)
-    )
-    brands = result.scalars().all()
-    return brands

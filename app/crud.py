@@ -127,7 +127,6 @@ async def create_feedback(db: AsyncSession, data: dict):
     return feedback
 
 
-
 async def semantic_search_brands(
     db: AsyncSession,
     query_vector: list,
@@ -135,9 +134,8 @@ async def semantic_search_brands(
     price_range: str = None,
     category: str = None,
     limit: int = 10,
+    max_distance: float = None,
 ):
-    # Format vector as pgvector literal — inlined directly, NOT as a bound param
-    # because asyncpg conflicts with ::vector cast syntax
     vec_literal = "[" + ",".join(str(x) for x in query_vector) + "]"
 
     filter_clauses = ["embedding IS NOT NULL"]
@@ -153,6 +151,10 @@ async def semantic_search_brands(
         filter_clauses.append("EXISTS (SELECT 1 FROM unnest(category) AS c WHERE c ILIKE :category)")
         params["category"] = f"%{category}%"
 
+    # FIXED: Only add distance threshold if it's actually provided
+    if max_distance is not None:
+        filter_clauses.append(f"(embedding <=> '{vec_literal}'::vector) < {max_distance}")
+
     where_clause = " AND ".join(filter_clauses)
 
     sql = text(f"""
@@ -167,6 +169,65 @@ async def semantic_search_brands(
 
     result = await db.execute(sql, params)
     return [dict(row) for row in result.mappings().all()]
+
+
+
+async def hybrid_search_brands(
+    db: AsyncSession,
+    query_text: str,
+    query_vector: list,
+    country: str = None,
+    price_range: str = None,
+    category: str = None,
+    limit: int = 10,
+):
+    """
+    Hybrid search: Combines exact/partial text matching with semantic search
+    """
+    # Build base query for text search
+    text_query = select(Brand).where(
+        Brand.embedding.isnot(None)  # Only brands with embeddings
+    )
+    
+    # Add text matching (name, description, tags)
+    text_query = text_query.where(
+        (Brand.name.ilike(f"%{query_text}%")) |
+        (Brand.description.ilike(f"%{query_text}%"))
+    )
+    
+    # Add filters
+    if country:
+        text_query = text_query.where(Brand.country.ilike(f"%{country}%"))
+    if price_range:
+        text_query = text_query.where(Brand.price_range.ilike(f"%{price_range}%"))
+    
+    # Execute text search
+    result = await db.execute(text_query.limit(limit))
+    text_matches = result.scalars().all()
+    
+    # If we have text matches, return them
+    if text_matches:
+        return [
+            {
+                "id": b.id,
+                "name": b.name,
+                "website": b.website,
+                "instagram_handle": b.instagram_handle,
+                "country": b.country,
+                "category": b.category,
+                "price_range": b.price_range,
+                "tags": b.tags,
+                "description": b.description,
+                "score": 0.0  # Text match
+            }
+            for b in text_matches
+        ]
+    
+    # Otherwise, fall back to semantic search (no distance limit)
+    return await semantic_search_brands(
+        db, query_vector, country, price_range, category, limit,
+        max_distance=None  # No distance limit for fallback
+    )
 
 
 async def get_similar_brands(
