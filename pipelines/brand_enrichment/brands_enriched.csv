@@ -1,0 +1,4 @@
+name,website,instagram_handle,country,category,price_range,description,tags,is_featured,enrichment_status,confidence_score,needs_review,review_reason,last_updated
+Anavila,https://www.anavila.com,anavila_m,India,Ethnic,luxury,"Designer Sari Collection by Anavila, blending comfort and luxury.","sari, designer, linen, khadi, zari, wool",False,,0.8,True,Missing: category,2026-03-03T11:05:58.987892
+Bhaane,https://www.bhaane.com,bhaane,India,Women's Fashion,mid,Elevated separates for Men & Women,men women fashion tops bottoms dresses,False,,0.8,True,Missing: country,2026-03-03T11:05:56.946449
+Lereve,https://lerevelife.com,lereve.Life,India,Workwear,mid,"Breathable cotton, designed for movement and comfort","cotton,workwear,men,women",False,,0.8,True,Missing: country,2026-03-03T11:05:57.788660
