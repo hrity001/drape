@@ -45,9 +45,10 @@ export default function BrandCard({ brand, onLike, onDislike }: {
       {brand.description && <p className="text-sm text-gray-600">{brand.description}</p>}
       
       <div className="flex flex-wrap gap-1">
-        {brand.tags?.map(t => (
-          <span key={t} className="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">{t}</span>
-        ))}
+       {[...new Set(brand.tags || [])].map(t => (
+  <span key={t} className="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">{t}</span>
+))}
+
       </div>
       
       <div className="flex gap-3 text-sm">

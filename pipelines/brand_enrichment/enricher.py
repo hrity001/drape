@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from .client import call_ollama
 from .schema import EnrichedBrand, LLMBrandData
 from .scraper import fetch_website_text
-from .pricing import classify_price
+
 
 
 from .config import MAX_RETRIES
@@ -50,38 +50,92 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 
-
 def build_prompt(name: str, website_text: str):
     return f"""
-You are a structured brand profiler.
+You are an expert fashion brand analyst. 
 
-Using the website content below, generate STRICT JSON only.
 
-Brand: {name}
+EXAMPLE 1:
+Brand: Fabindia
+Output: {{
+  "country": "India",
+  "category": "Fashion",
+  "price_range": "mid",
+  "description": "Contemporary Indian clothing with traditional crafts and handloom textiles for modern living",
+  "tags": "handloom,ethnic,sustainable,cotton,artisanal,indian,contemporary",
+  "is_featured": false,
+  "confidence_score": 0.95
+}}
+
+
+EXAMPLE 2:
+Brand: Anita Dongre
+Output: {{
+  "country": "India",
+  "category": "Luxury",
+  "price_range": "premium",
+  "description": "Luxury Indian fashion designer known for sustainable bridal wear and contemporary ethnic clothing",
+  "tags": "luxury,bridal,sustainable,designer,ethnic,handcrafted,premium",
+  "is_featured": true,
+  "confidence_score": 0.92
+}}
+Now analyze this brand:
+Brand Name: {name}
 
 Website Content:
-{website_text}
+{website_text[:3000]}
 
-Return ONLY valid JSON:
+Extract the following information and return ONLY valid JSON:
 
 {{
-  "country": "",
-  "category": "",
-  "price_range": "",
-  "description": "",
-  "tags": "",
+  "country": "Country where brand is based (e.g., India, USA, UK, France)",
+  "category": "Primary category (Fashion, Accessories, Footwear, Jewelry, Beauty, Home & Living, Sportswear, Sustainable Fashion, or Luxury)",
+  "price_range": "One of: low, mid, premium, luxury",
+  "description": "Concise 20-30 word brand description highlighting unique value",
+  "tags": "5-8 relevant lowercase tags, comma-separated (e.g., sustainable,handmade,cotton,minimalist)",
   "is_featured": false,
   "confidence_score": 0.0
 }}
 
-Rules:
-- Description under 30 words
-- Tags lowercase, comma-separated, no spaces
-- No explanation
-- price_range must be one of: low, mid, premium, luxury
-- Do NOT use currency symbols
-- confidence_score: 0.0-1.0 based on data quality (1.0 = very confident, 0.0 = uncertain)
-- Set confidence_score lower if information is unclear or missing
+GUIDELINES:
+
+Country:
+- Look for "About Us", "Contact", "Shipping" sections
+- Check for currency symbols (₹=India, $=USA, £=UK, €=Europe)
+- Look for phone numbers with country codes
+- If unclear, use "India" as default for Indian fashion brands
+
+Category:
+- Fashion: Clothing, apparel, ethnic wear, western wear
+- Accessories: Bags, jewelry, scarves, belts
+- Footwear: Shoes, sandals, heels
+- Sustainable Fashion: Eco-friendly, organic, ethical brands
+
+Price Range (based on product prices or brand positioning):
+- low: Under ₹2000 or $30 (mass market, affordable)
+- mid: ₹2000-8000 or $30-120 (contemporary, accessible premium)
+- premium: ₹8000-25000 or $120-400 (designer, high-quality)
+- luxury: Above ₹25000 or $400+ (haute couture, luxury designer)
+
+Description:
+- Focus on brand's unique selling proposition
+- Mention style aesthetic (minimalist, bohemian, contemporary, traditional)
+- Include target audience if clear (women, men, unisex)
+- Highlight key materials or craftsmanship if mentioned
+
+Tags:
+- Include: style keywords, materials, sustainability aspects, occasion types
+- Examples: handwoven, linen, sustainable, workwear, festive, minimalist, artisanal
+- Use lowercase, no spaces between words in compound terms
+
+Confidence Score:
+- 0.9-1.0: All information clearly stated on website
+- 0.7-0.8: Most information found, some inference needed
+- 0.5-0.6: Limited information, significant inference
+- 0.3-0.4: Very limited information, mostly guesswork
+- 0.0-0.2: Almost no relevant information found
+
+Return ONLY the JSON object, no explanations.
 """
 
 

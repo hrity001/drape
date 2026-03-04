@@ -41,57 +41,74 @@ async def get_or_create_brand(session: AsyncSession, brand_data: dict):
         logging.info(f"Created new brand: {brand_data['name']}")
         return new_brand, True
 
-
-async def upload_brands_to_db(brands_data: list[dict], batch_size: int = 10):
-    """
-    Upload enriched brands to database.
+async def upload_brands_to_db(brands, batch_size=10):
+    """Upload brands with duplicate detection"""
+    stats = {"created": 0, "updated": 0, "errors": 0, "skipped": 0, "total": len(brands)}
     
-    Args:
-        brands_data: List of brand dictionaries from CSV
-        batch_size: Number of brands to commit at once
-    """
     engine = create_async_engine(DATABASE_URL, echo=False)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
-    created_count = 0
-    updated_count = 0
-    error_count = 0
-    
     async with async_session() as session:
-        for idx, brand_dict in enumerate(brands_data, 1):
-            try:
-                # Prepare data for database
-                db_brand_data = prepare_brand_for_db(brand_dict)
-                
-                # Get or create brand
-                brand, is_new = await get_or_create_brand(session, db_brand_data)
-                
-                if is_new:
-                    created_count += 1
-                else:
-                    updated_count += 1
-                
-                # Commit in batches
-                if idx % batch_size == 0:
-                    await session.commit()
-                    logging.info(f"Committed batch: {idx}/{len(brands_data)}")
+        for i in range(0, len(brands), batch_size):
+            batch = brands[i:i + batch_size]
+            
+            for brand_data in batch:
+                try:
+                    # Filter out fields that don't exist in Brand model
+                    valid_fields = {
+                        'name', 'website', 'instagram_handle', 'country', 
+                        'category', 'price_range', 'description', 'tags', 
+                        'is_featured'
+                    }
                     
-            except Exception as e:
-                error_count += 1
-                logging.error(f"Error processing {brand_dict.get('name', 'Unknown')}: {e}")
-                await session.rollback()
-        
-        # Final commit
-        await session.commit()
-    
+                    # Clean the data - only keep valid fields
+                    clean_data = {
+                        k: v for k, v in brand_data.items() 
+                        if k in valid_fields and v and v != ''
+                    }
+                    
+                    # Convert string booleans to actual booleans
+                    if 'is_featured' in clean_data:
+                        clean_data['is_featured'] = clean_data['is_featured'].lower() in ['true', '1', 'yes']
+                    
+                    # Convert comma-separated strings to arrays for category and tags
+                    if 'category' in clean_data and isinstance(clean_data['category'], str):
+                        clean_data['category'] = [clean_data['category']]
+                    
+                    if 'tags' in clean_data and isinstance(clean_data['tags'], str):
+                        clean_data['tags'] = [t.strip() for t in clean_data['tags'].split(',')]
+                    
+                    # Check for duplicate by website
+                    result = await session.execute(
+                        select(Brand).where(Brand.website == clean_data["website"])
+                    )
+                    existing_brand = result.scalar_one_or_none()
+                    
+                    if existing_brand:
+                        # Update existing brand
+                        for key, value in clean_data.items():
+                            if hasattr(existing_brand, key) and value:
+                                setattr(existing_brand, key, value)
+                        stats["updated"] += 1
+                        logging.info(f"Updated: {clean_data['name']}")
+                    else:
+                        # Create new brand
+                        brand = Brand(**clean_data)
+                        session.add(brand)
+                        stats["created"] += 1
+                        logging.info(f"Created: {clean_data['name']}")
+                    
+                except Exception as e:
+                    stats["errors"] += 1
+                    logging.error(f"Error with {brand_data.get('name', 'Unknown')}: {e}")
+            
+            await session.commit()
+
     await engine.dispose()
-    
-    return {
-        "created": created_count,
-        "updated": updated_count,
-        "errors": error_count,
-        "total": len(brands_data)
-    }
+    return stats
+
+
+
 
 
 def prepare_brand_for_db(brand_dict: dict) -> dict:
